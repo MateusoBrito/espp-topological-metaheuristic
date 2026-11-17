@@ -1,8 +1,9 @@
 import pandas as pd
-from pathlib import Path
 import numpy as np
+import networkx as nx
+from pathlib import Path
 from scipy.spatial import cKDTree
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, csgraph
 from scipy.sparse.csgraph import connected_components
 
 DEFAULT_COLUMNS = [
@@ -74,6 +75,9 @@ def group_unique_station(df: pd.DataFrame):
             tem_5g=("Geração", lambda x: "5G" in set(x)),
         )
     )
+    partes = df_unicas["municipio"].str.rsplit("-", n=1, expand=True)
+    df_unicas["municipio"] = partes[0].str.strip()
+    df_unicas.insert(df_unicas.columns.get_loc("municipio") + 1, "uf", partes[1].str.strip())
     df_unicas["node_id"] = df_unicas.index
     return df_unicas
 
@@ -83,3 +87,41 @@ def save_data(df: pd.DataFrame, output_path: str):
     output_path.parent.mkdir(parents=True, exist_ok=True) 
     df.to_csv(output_path, index=False)
     print(f"DataFrame salvo em: {output_path}")
+
+def format_size(size_bytes: int) -> str:
+    """Retorna o tamanho formatado em B, KB, MB ou GB."""
+    for unit in ["B", "KB", "MB", "GB"]:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.2f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.2f} TB"
+
+
+def export_distance_matrix(
+    G: nx.Graph,
+    biggest_component_only: bool = True,
+    output_path: str = "data/processed/distance_matrix.bin",
+):
+    """Exporta a matriz de distâncias do grafo para um arquivo binário (.bin)."""
+    if biggest_component_only:
+        num_nodes = G.number_of_nodes()
+        if num_nodes == 0:
+            print("[Distance Matrix Export] O grafo está vazio. Nenhuma matriz de distância será exportada.")
+            return
+        largest_cc = max(nx.connected_components(G), key=len)
+        G = G.subgraph(largest_cc).copy()
+        print(f"[Distance Matrix Export] Exportando apenas o maior componente conectado com {G.number_of_nodes()} de {num_nodes} nós.")
+
+    sparse_matrix = nx.to_scipy_sparse_array(G, weight='weight')
+    matrix = csgraph.shortest_path(csgraph=sparse_matrix, directed=False, method='D')
+    print(f"Matriz de Distâncias gerada!")
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(output_path, "wb") as f:
+        f.write(matrix.astype(np.float64).tobytes())
+
+    size_bytes = output_path.stat().st_size
+    formatted_size = format_size(size_bytes)
+    print(f"[Distance Matrix Export] Matriz de distâncias exportada para: {output_path} ocupando {formatted_size} ({size_bytes:,} bytes)")

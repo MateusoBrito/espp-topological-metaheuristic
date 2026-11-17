@@ -1,96 +1,26 @@
 import argparse
 import pandas as pd
 from pathlib import Path
-from graph.data_processing import load_raw_data, assign_spatial_clusters, group_unique_station, save_data
+from graph.data_processing import load_raw_data, assign_spatial_clusters, group_unique_station, save_data, export_distance_matrix
 from graph.generate_connections import generate_waxman_graph, save_graph
-import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
+from graph.generate_demands import generate_demands, save_demands
+from graph.plots import generate_all_plots
 
 def argument_parser():
     parser = argparse.ArgumentParser(description="Processa estações, gera conexões e plota o mapa.")
     parser.add_argument("--input_file", type=str, default="data/raw/Estacoes_SMP.csv")
+    parser.add_argument("--pop_file", type=str, default="data/raw/estimativa_dou_2026.xlsx", help="Arquivo Excel com estimativa populacional do IBGE")
     parser.add_argument("--stations_file", type=str, default="data/processed/estacoes_unicas.csv")
-    parser.add_argument("--graph_file", type=str, default="data/processed/grafo.graphml")
-    parser.add_argument("--map_file", type=str, default="reports/mapa_conexoes.png")
+    parser.add_argument("--uf",type=str,default="MG",help="Sigla da UF para filtrar (ex: MG, SP) ou 'BR' para considerar o Brasil todo (padrão: MG).",)
+    parser.add_argument("--graph_file", type=str, default=None, help="Caminho de saída do grafo (gerado dinamicamente por UF se omitido)")
+    parser.add_argument("--map_file", type=str, default=None, help="Caminho de saída do mapa (gerado dinamicamente por UF se omitido)")
+    parser.add_argument("--matrix_file", type=str, default=None, help="Caminho de saída da matriz de distâncias (gerado dinamicamente por UF se omitido)")
+    parser.add_argument("--demands_file", type=str, default=None, help="Caminho de saída do vetor de demandas (gerado dinamicamente por UF se omitido)")
+    parser.add_argument("--alpha", type=float, default=0.4, help="Parâmetro alpha do modelo de Waxman")
+    parser.add_argument("--beta", type=float, default=None, help="Parâmetro beta do modelo de Waxman (padrão automático: 0.015 para UF ou 0.0003 para BR)")
+    parser.add_argument("--max_dist_km", type=float, default=None, help="Distância máxima de busca (km). Se omitido, é calculada dinamicamente.")
+    parser.add_argument("--min_prob_ratio", type=float, default=0.0025, help="Limiar de probabilidade residual epsilon")
     return parser
-
-def plot_network_map(G, output_path: str, title: str = "Topologia Waxman"):
-    """Plota os vértices posicionados geograficamente e diferencia enlaces Waxman vs Fallback."""
-    fig, ax = plt.subplots(figsize=(12, 12))
-
-    # 1. Extrai a posição (lon, lat) de cada nó do grafo
-    pos = {node: data["pos"] for node, data in G.nodes(data=True)}
-
-    # 2. Separa segmentos de linha para Waxman (azul) e Fallback (vermelho tracejado)
-    waxman_segs = [
-        [pos[u], pos[v]]
-        for u, v, d in G.edges(data=True)
-        if d.get("tipo") != "fallback_mais_proxima"
-    ]
-    fallback_segs = [
-        [pos[u], pos[v]]
-        for u, v, d in G.edges(data=True)
-        if d.get("tipo") == "fallback_mais_proxima"
-    ]
-
-    # 3. Ajuste automático de tamanho visual (cidade pequena vs Brasil todo)
-    n_nos = G.number_of_nodes()
-    is_large = n_nos > 5000
-    node_size = 0.5 if is_large else 25
-    edge_width = 0.2 if is_large else 0.8
-    edge_alpha = 0.15 if is_large else 0.35
-
-    # 4. Desenha as arestas rapidamente usando LineCollection
-    if waxman_segs:
-        ax.add_collection(
-            LineCollection(
-                waxman_segs,
-                colors="#1f77b4",
-                linewidths=edge_width,
-                alpha=edge_alpha,
-                rasterized=True,
-                label="Enlace Waxman",
-            )
-        )
-    if fallback_segs:
-        ax.add_collection(
-            LineCollection(
-                fallback_segs,
-                colors="#d62728",
-                linewidths=edge_width * 2,
-                linestyles="--",
-                alpha=0.85,
-                rasterized=True,
-                label="Fallback (mais próxima)",
-            )
-        )
-
-    # 5. Desenha os vértices (torres) sobre as linhas
-    xs = [p[0] for p in pos.values()]
-    ys = [p[1] for p in pos.values()]
-    ax.scatter(
-        xs, ys,
-        s=node_size,
-        c="#2ca02c",
-        alpha=0.85,
-        zorder=5,
-        rasterized=True,
-        label=f"Torres ({n_nos:,})",
-    )
-
-    ax.set_title(f"{title}\n({n_nos:,} nós | {G.number_of_edges():,} arestas)", fontsize=14, pad=12)
-    ax.set_xlabel("Longitude")
-    ax.set_ylabel("Latitude")
-    ax.set_aspect("equal")
-    ax.grid(True, linestyle="--", alpha=0.3)
-    ax.legend(loc="upper right", markerscale=1 if not is_large else 5)
-
-    # 6. Cria a pasta de saída e salva em alta resolução
-    out = Path(output_path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(out, dpi=300, bbox_inches="tight")
-    plt.close()
-    print(f"[Visualização] Mapa salvo em: {out}")
 
 def main():
     args = argument_parser().parse_args()
@@ -105,12 +35,55 @@ def main():
         df_unique = group_unique_station(df_clustered)
         save_data(df_unique, args.stations_file)
 
-    # 3. Gerar o Grafo (Modelo de Waxman + Fallback)
-    G = generate_waxman_graph(df_unique, seed=42)
-    save_graph(G, args.graph_file)
+    # 2. Filtra por UF (se diferente de 'BR') ou considera o Brasil inteiro
+    uf_param = args.uf.strip().upper()
+    if uf_param != "BR":
+        df_unique = df_unique[df_unique["uf"].str.upper() == uf_param].copy()
+        df_unique = df_unique.reset_index(drop=True)
+        df_unique["node_id"] = df_unique.index
+        scope_tag = uf_param.lower()
+        scope_label = uf_param
+        print(f"[Filter] UF={uf_param} selecionada: {len(df_unique):,} estações únicas.")
+    else:
+        df_unique = df_unique.reset_index(drop=True)
+        df_unique["node_id"] = df_unique.index
+        scope_tag = "br"
+        scope_label = "Brasil"
+        print(f"[Filter] Sem filtro de UF (BR - Brasil completo): {len(df_unique):,} estações únicas.")
 
-    # 4. Gerar e salvar o mapa conectado
-    plot_network_map(G, args.map_file, title="Topologia Waxman")
+    graph_file = args.graph_file or f"data/processed/grafo_{scope_tag}.graphml"
+    matrix_file = args.matrix_file or f"data/processed/distance_matrix_{scope_tag}.bin"
+    demands_file = args.demands_file or f"data/processed/vetor_demandas_{scope_tag}.bin"
+    beta = args.beta if args.beta is not None else (0.0003 if uf_param == "BR" else 0.015)
+
+    # 3. Gerar o Grafo (Modelo de Waxman + Fallback)
+    G = generate_waxman_graph(
+        df_unique,
+        alpha=args.alpha,
+        beta=beta,
+        max_dist_km=args.max_dist_km,
+        min_prob_ratio=args.min_prob_ratio,
+        seed=42,
+    )
+    save_graph(G, graph_file)
+
+    # 4. Gerar e exportar o vetor de demandas populacionais
+    df_populacao = pd.read_excel(args.pop_file, sheet_name="municípios", skiprows=1)
+    vetor_demandas = generate_demands(df_unique, df_populacao)
+    save_demands(vetor_demandas, output_path=demands_file)
+
+    # 5. Gerar e salvar os mapas (conexões, população, demandas e combinado)
+    generate_all_plots(
+        G,
+        df_unique,
+        vetor_demandas,
+        scope_tag=scope_tag,
+        scope_label=scope_label,
+        map_file=args.map_file,
+    )
+
+    # 6. Exportar a matriz de distâncias
+    #export_distance_matrix(G, biggest_component_only=True, output_path=matrix_file)
 
 if __name__ == "__main__":
     main()

@@ -66,7 +66,14 @@ def calculate_max_diameter_km(lats: np.ndarray, lons: np.ndarray, coords_3d: np.
     return float(np.max(_chord_to_haversine_km(chord_dists)))
 
 
-def generate_waxman_graph(df_stations, alpha=0.4, beta=0.0003, max_dist_km=15.0, seed=42) -> nx.Graph:
+def generate_waxman_graph(
+    df_stations,
+    alpha: float = 0.4,
+    beta: float = 0.015,
+    max_dist_km: float | None = None,
+    min_prob_ratio: float = 0.0025,
+    seed: int = 42,
+) -> nx.Graph:
     """
     Gera um grafo espacial usando o Modelo de Waxman otimizado com cKDTree (Opção A).
     Escalável para o Brasil inteiro sem estourar memória RAM.
@@ -77,14 +84,17 @@ def generate_waxman_graph(df_stations, alpha=0.4, beta=0.0003, max_dist_km=15.0,
         beta (float): Controla o alcance dos enlaces relativo ao diâmetro L.
                       - Para o Brasil todo (L ~ 4.500 km): use valores entre 0.0003 e 0.0005 (beta*L ~ 1.3 a 2.2 km).
                       - Para um município isolado (L ~ 40 km): use valores entre 0.05 e 0.15.
-        max_dist_km (float): Raio máximo de busca para enlaces diretos do modelo de Waxman (km).
+        max_dist_km (float, optional): Raio máximo de busca para enlaces diretos (km).
+                                       Se None (padrão), é deduzido analiticamente a partir
+                                       do limiar de corte epsilon: d_max = -ln(min_prob_ratio) * (beta * L).
+        min_prob_ratio (float): Limiar de probabilidade residual epsilon (default: 0.0025 = 0.25% de alpha).
+                                Garante d_max ~= 6 * beta * L quando max_dist_km=None.
         seed (int): Semente para geração de números aleatórios (reprodutibilidade).
 
     Returns:
         nx.Graph: Grafo com nós georreferenciados e arestas ponderadas pela distância em km.
     """
     np.random.seed(seed)
-    print(f"[Waxman] Gerando grafo Waxman com alpha={alpha}, beta={beta}, max_dist_km={max_dist_km} km, seed={seed}")
     n = len(df_stations)
     if n == 0:
         raise ValueError("O DataFrame df_stations está vazio. Verifique o filtro aplicado.")
@@ -99,9 +109,21 @@ def generate_waxman_graph(df_stations, alpha=0.4, beta=0.0003, max_dist_km=15.0,
 
     # 2. Diâmetro máximo L calculado apenas sobre os vértices da borda (Convex Hull)
     L = calculate_max_diameter_km(lats, lons, coords_3d)
-    print(f"[Waxman] Diâmetro geográfico máximo (L): {L:.2f} km | beta*L = {beta * L:.2f} km")
 
-    # 3. Busca esparsa apenas de pares dentro do raio max_dist_km
+    # 3. Raio máximo de busca: fornecido manualmente ou deduzido analiticamente por decaimento exponencial
+    if max_dist_km is None:
+        if beta > 0 and L > 0 and 0 < min_prob_ratio < 1:
+            k = -np.log(min_prob_ratio)  # ex: -ln(0.0025) ~= 5.99
+            max_dist_km = float(k * (beta * L))
+        else:
+            max_dist_km = 15.0
+
+    print(
+        f"[Waxman] Diâmetro geográfico (L): {L:.2f} km | "
+        f"beta*L = {beta * L:.2f} km | max_dist_km dinâmico: {max_dist_km:.2f} km (eps={min_prob_ratio})"
+    )
+
+    # 4. Busca esparsa apenas de pares dentro do raio max_dist_km
     pairs = tree.query_pairs(r=max_dist_km, output_type="ndarray")
     if len(pairs) > 0:
         u_idx = pairs[:, 0]
@@ -206,4 +228,10 @@ def save_graph(G, output_path):
             G_export.nodes[node].pop("pos", None)
         nx.write_graphml(G_export, str(output_path))
 
-    print(f"[Waxman] Grafo salvo com sucesso em: {output_path}")
+    size_bytes = output_path.stat().st_size
+    if size_bytes >= 1024 * 1024:
+        size_str = f"{size_bytes / (1024 * 1024):.2f} MB"
+    else:
+        size_str = f"{size_bytes / 1024:.2f} KB"
+
+    print(f"[Waxman] Grafo salvo com sucesso em: {output_path} ocupando {size_str} ({size_bytes:,} bytes)")
