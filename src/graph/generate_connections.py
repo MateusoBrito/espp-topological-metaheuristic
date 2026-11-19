@@ -72,6 +72,7 @@ def generate_waxman_graph(
     beta: float = 0.015,
     max_dist_km: float | None = None,
     min_prob_ratio: float = 0.0025,
+    biggest_component_only: bool = True,
     seed: int = 42,
 ) -> nx.Graph:
     """
@@ -89,6 +90,7 @@ def generate_waxman_graph(
                                        do limiar de corte epsilon: d_max = -ln(min_prob_ratio) * (beta * L).
         min_prob_ratio (float): Limiar de probabilidade residual epsilon (default: 0.0025 = 0.25% de alpha).
                                 Garante d_max ~= 6 * beta * L quando max_dist_km=None.
+        biggest_component_only (bool): Se True, retorna apenas o maior componente conectado do grafo.
         seed (int): Semente para geração de números aleatórios (reprodutibilidade).
 
     Returns:
@@ -203,6 +205,16 @@ def generate_waxman_graph(
 
     print(f"[Waxman] Cabos de fallback adicionados (nós isolados / > {max_dist_km} km): {cabos_fallback:,}")
     print(f"[Waxman] Grafo gerado: {G.number_of_nodes():,} nós e {G.number_of_edges():,} arestas.")
+
+    if biggest_component_only:
+        num_nodes = G.number_of_nodes()
+        if num_nodes == 0:
+            print("[Waxman] O grafo está vazio.")
+            return
+        largest_cc = max(nx.connected_components(G), key=len)
+        G = G.subgraph(largest_cc).copy()
+        print(f"[Waxman] Filtrando apenas o maior componente conectado com {G.number_of_nodes()} de {num_nodes} nós.")
+
     return G
 
 

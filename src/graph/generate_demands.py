@@ -10,27 +10,6 @@ def text_normalize(texto):
     s = unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("utf-8").strip().upper()
     return " ".join(s.replace("-", " ").replace("'", " ").split())
 
-
-# Correções pontuais de grafia histórica entre Anatel e IBGE
-_CORRECOES_ANATEL_IBGE = {
-    "SAO THOME DAS LETRAS_MG": "SAO TOME DAS LETRAS_MG",
-    "DONA EUSEBIA_MG": "DONA EUZEBIA_MG",
-    "BARAO DE MONTE ALTO_MG": "BARAO DO MONTE ALTO_MG",
-    "SAO LUIS DO PARAITINGA_SP": "SAO LUIZ DO PARAITINGA_SP",
-    "FLORINIA_SP": "FLORINEA_SP",
-    "SANTA TERESINHA_BA": "SANTA TEREZINHA_BA",
-    "MUQUEM DE SAO FRANCISCO_BA": "MUQUEM DO SAO FRANCISCO_BA",
-    "AMPARO DE SAO FRANCISCO_SE": "AMPARO DO SAO FRANCISCO_SE",
-    "GRACCHO CARDOSO_SE": "GRACHO CARDOSO_SE",
-    "SANTO ANTONIO DO LEVERGER_MT": "SANTO ANTONIO DE LEVERGER_MT",
-    "FORTALEZA DO TABOCAO_TO": "TABOCAO_TO",
-    "SAO LUIZ_RR": "SAO LUIS_RR",
-    "ACU_RN": "ASSU_RN",
-    "ARES_RN": "AREZ_RN",
-    "AUGUSTO SEVERO_RN": "CAMPO GRANDE_RN",
-}
-
-
 def generate_demands(
     df_estacoes: pd.DataFrame,
     df_populacao: pd.DataFrame,
@@ -52,12 +31,12 @@ def generate_demands(
     )
 
     # 3. Cria as chaves de busca padronizadas e faz o Merge
-    chaves_est = (
+    df_antenas_mun["chave_busca"] = (
         df_antenas_mun["municipio"].apply(text_normalize)
         + "_"
         + df_antenas_mun["uf"].apply(text_normalize)
     )
-    df_antenas_mun["chave_busca"] = chaves_est.replace(_CORRECOES_ANATEL_IBGE)
+
     df_populacao["chave_busca"] = (
         df_populacao["NOME DO MUNICÍPIO"].apply(text_normalize)
         + "_"

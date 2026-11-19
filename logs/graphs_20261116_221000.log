@@ -1,0 +1,13 @@
+Carregando estações já processadas de: data/processed/estacoes_unicas.csv
+[Filter] UF=MG selecionada: 9,368 estações únicas.
+[Waxman] Diâmetro geográfico (L): 1239.06 km | beta*L = 18.59 km | max_dist_km dinâmico: 111.36 km (eps=0.0025)
+[Waxman] Cabos de fallback adicionados (nós isolados / > 111.35688747743755 km): 46
+[Waxman] Grafo gerado: 9,368 nós e 478,714 arestas.
+[Waxman] Grafo salvo com sucesso em: data/processed/grafo_mg.graphml ocupando 84.20 MB (88,294,951 bytes)
+[Demands] Iniciando cálculo populacional por município...
+[Demands] Estações sem cobertura populacional (preenchidas com 0): 0 de 9,368
+[Demands] Sucesso! Vetor exportado em data/processed/vetor_demandas_mg.bin com 9,368 nós (73.19 KB).
+[Visualization] Mapa salvo em: reports/mapa_conexoes_mg.png
+[Visualization] Mapa salvo em: reports/mapa_populacao_mg.png
+[Visualization] Mapa salvo em: reports/mapa_demandas_mg.png
+[Visualization] Mapa salvo em: reports/mapa_conexoes_demandas_mg.png

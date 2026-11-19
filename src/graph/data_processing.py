@@ -99,18 +99,9 @@ def format_size(size_bytes: int) -> str:
 
 def export_distance_matrix(
     G: nx.Graph,
-    biggest_component_only: bool = True,
     output_path: str = "data/processed/distance_matrix.bin",
 ):
     """Exporta a matriz de distâncias do grafo para um arquivo binário (.bin)."""
-    if biggest_component_only:
-        num_nodes = G.number_of_nodes()
-        if num_nodes == 0:
-            print("[Distance Matrix Export] O grafo está vazio. Nenhuma matriz de distância será exportada.")
-            return
-        largest_cc = max(nx.connected_components(G), key=len)
-        G = G.subgraph(largest_cc).copy()
-        print(f"[Distance Matrix Export] Exportando apenas o maior componente conectado com {G.number_of_nodes()} de {num_nodes} nós.")
 
     sparse_matrix = nx.to_scipy_sparse_array(G, weight='weight')
     matrix = csgraph.shortest_path(csgraph=sparse_matrix, directed=False, method='D')

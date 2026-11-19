@@ -1,10 +1,10 @@
 import argparse
 import pandas as pd
 from pathlib import Path
-from graph.data_processing import load_raw_data, assign_spatial_clusters, group_unique_station, save_data, export_distance_matrix
-from graph.generate_connections import generate_waxman_graph, save_graph
-from graph.generate_demands import generate_demands, save_demands
-from graph.plots import generate_all_plots
+from src.graph.data_processing import load_raw_data, assign_spatial_clusters, group_unique_station, save_data, export_distance_matrix
+from src.graph.generate_connections import generate_waxman_graph, save_graph
+from src.graph.generate_demands import generate_demands, save_demands
+from src.graph.plots import generate_all_plots
 
 def argument_parser():
     parser = argparse.ArgumentParser(description="Processa estações, gera conexões e plota o mapa.")
@@ -63,8 +63,10 @@ def main():
         beta=beta,
         max_dist_km=args.max_dist_km,
         min_prob_ratio=args.min_prob_ratio,
+        biggest_component_only=True,
         seed=42,
     )
+
     save_graph(G, graph_file)
 
     # 4. Gerar e exportar o vetor de demandas populacionais
@@ -83,7 +85,7 @@ def main():
     )
 
     # 6. Exportar a matriz de distâncias
-    #export_distance_matrix(G, biggest_component_only=True, output_path=matrix_file)
+    #export_distance_matrix(G, output_path=matrix_file)
 
 if __name__ == "__main__":
     main()
