@@ -28,7 +28,10 @@ def main():
     # 1. Processamento (usa cache se já existir, senão processa do zero)
     if Path(args.stations_file).exists():
         print(f"Carregando estações já processadas de: {args.stations_file}")
-        df_unique = pd.read_csv(args.stations_file)
+        df_unique = pd.read_csv(args.stations_file, skipinitialspace=True)
+        df_unique.columns = df_unique.columns.str.strip()
+        for col in df_unique.select_dtypes(include="object").columns:
+            df_unique[col] = df_unique[col].astype(str).str.strip()
     else:
         df_raw = load_raw_data(args.input_file)
         df_clustered = assign_spatial_clusters(df_raw, radius_meters=30.0)
