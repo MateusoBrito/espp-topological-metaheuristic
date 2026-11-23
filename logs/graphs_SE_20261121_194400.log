@@ -1,0 +1,14 @@
+Carregando estações já processadas de: data/processed/estacoes_unicas.csv
+[Filter] UF=SE selecionada: 755 estações únicas.
+[Waxman] Diâmetro geográfico (L): 213.26 km | beta*L = 11.73 km | max_dist_km dinâmico: 70.28 km (eps=0.0025)
+[Waxman] Cabos de fallback adicionados (nós isolados / > 70.27724622666598 km): 12
+[Waxman] Grafo gerado: 755 nós e 11,623 arestas.
+[Waxman] Filtrando apenas o maior componente conectado com 747 de 755 nós.
+[Waxman] Grafo salvo com sucesso em: data/processed/grafo_se.graphml ocupando 2.17 MB (2,270,629 bytes)
+[Demands] Iniciando cálculo populacional por município...
+[Demands] Estações sem cobertura populacional (preenchidas com 0): 5 de 755
+[Demands] Sucesso! Vetor exportado em data/processed/vetor_demandas_se.bin com 755 nós (5.90 KB).
+[Visualization] Mapa salvo em: reports/mapa_conexoes_se.png
+[Visualization] Mapa salvo em: reports/mapa_populacao_se.png
+[Visualization] Mapa salvo em: reports/mapa_demandas_se.png
+[Visualization] Mapa salvo em: reports/mapa_conexoes_demandas_se.png
