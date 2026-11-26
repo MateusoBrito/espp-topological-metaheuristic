@@ -2,7 +2,7 @@ import time
 import random
 import argparse
 import numpy as np
-from src.metaheuristic.evaluator import evaluate, load_sergipe_data, generate_mock_data
+from src.metaheuristic.evaluator import evaluate, km_to_rtt_ms, load_sergipe_data, generate_mock_data
 
 
 def construcao_gulosa_aleatoria(
@@ -116,7 +116,7 @@ def grasp(
             f_sbest = f_s
             sbest = list(s)
             if verbose:
-                print(f"[GRASP] Iteração {iteracao + 1:3d}/{grasp_max} | Novo melhor custo: {f_sbest:,.2f}")
+                print(f"[GRASP] Iteração {iteracao + 1:3d}/{grasp_max} | Novo melhor custo: {f_sbest:,.2f} ms·usuário")
 
         historico.append(f_sbest)
 
@@ -146,6 +146,9 @@ def main():
         print("[Modo] Carregando dados reais de Sergipe...")
         dist_matrix, demands, node_ids = load_sergipe_data()
 
+    # Converte a matriz de distâncias (km) para latência RTT em milissegundos (ms)
+    latency_matrix = km_to_rtt_ms(dist_matrix)
+
     N = len(node_ids)
     candidatos = list(range(N))  # Por padrão, todos os nós são candidatos
 
@@ -162,7 +165,7 @@ def main():
         p=args.p,
         grasp_max=args.grasp_max,
         alpha=args.alpha,
-        dist_matrix=dist_matrix,
+        dist_matrix=latency_matrix,
         demands=demands,
         verbose=True,
     )
@@ -171,14 +174,15 @@ def main():
     # Mapeia os índices internos de volta para os IDs reais das estações
     servidores_reais = [node_ids[idx] for idx in sbest]
 
-    # Latência média por habitante
+    # Latência média ponderada (RTT em ms) e distância média equivalente (km)
     demanda_total = np.sum(demands)
-    latencia_media_km = f_sbest / demanda_total if demanda_total > 0 else 0.0
+    latencia_media_ms = f_sbest / demanda_total if demanda_total > 0 else 0.0
+    distancia_media_km = evaluate(sbest, dist_matrix, demands) / demanda_total if demanda_total > 0 else 0.0
 
     print("=" * 60)
     print("=== RESULTADO GRASP (p-Mediana) ===")
-    print(f"Melhor custo total (Latência x População): {f_sbest:,.2f}")
-    print(f"Latência média ponderada: {latencia_media_km:.2f} km por usuário")
+    print(f"Melhor custo total (Latência RTT x População): {f_sbest:,.2f} ms·usuário")
+    print(f"Latência média ponderada (RTT): {latencia_media_ms:.4f} ms ({distancia_media_km:.2f} km)")
     print(f"Índices internos dos servidores: {sbest}")
     print(f"IDs reais das torres escolhidas: {servidores_reais}")
     print(f"Tempo total de execução: {fim - inicio:.2f} segundos")

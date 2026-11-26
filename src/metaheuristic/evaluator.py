@@ -3,6 +3,15 @@ import networkx as nx
 from pathlib import Path
 from scipy.sparse import csgraph, csr_matrix
 
+# Velocidade aproximada de propagação da luz em fibra óptica (~200 km/ms).
+# Para RTT (ida e volta): rtt_ms = (2 * dist_km) / 200.0 = dist_km / 100.0
+FIBER_PROPAGATION_SPEED_KM_PER_MS = 200.0
+
+
+def km_to_rtt_ms(dist_km: float | np.ndarray) -> float | np.ndarray:
+    """Converte distância geodésica em km para latência RTT (ida e volta) em ms."""
+    return (2.0 * dist_km) / FIBER_PROPAGATION_SPEED_KM_PER_MS
+
 
 def evaluate(S: list[int] | set[int], dist_matrix: np.ndarray, demands: np.ndarray) -> float:
     """
